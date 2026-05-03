@@ -144,8 +144,24 @@ def _extract_summary_text(md_text: str) -> str:
 # Запись Excel
 # ---------------------------------------------------------------------------
 
+def _parse_timecode_ms(timecode_str: str):
+    """Парсит таймкод в миллисекунды. Форматы: MM:SS, HH:MM:SS, 0:40:34–..."""
+    # берём только первый таймкод если диапазон ('0:00–28:00' или '00:40:34–00:41:00')
+    tc = timecode_str.split("–")[0].split("-")[0].strip()
+    parts = re.findall(r"\d+", tc)
+    if len(parts) == 3:
+        # HH:MM:SS
+        h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
+        return (h * 3600 + m * 60 + s) * 1000
+    elif len(parts) == 2:
+        # MM:SS
+        m, s = int(parts[0]), int(parts[1])
+        return (m * 60 + s) * 1000
+    return None
+
+
 def _find_closest_frame(timecode_str: str, session_dir: Path):
-    """По таймкоду CJM ('28:50' или '0:00–28:00') находит ближайший кадр в frames_kept."""
+    """По таймкоду находит ближайший кадр в frames_kept. Форматы: MM:SS, HH:MM:SS."""
     frames_dir = session_dir / "frames_kept"
     if not frames_dir.exists():
         return None
@@ -153,11 +169,10 @@ def _find_closest_frame(timecode_str: str, session_dir: Path):
     if not frame_files:
         return None
 
-    match = re.match(r"(\d+):(\d+)", timecode_str)
-    if not match:
+    target_ms = _parse_timecode_ms(timecode_str)
+    if target_ms is None:
         return frame_files[0]
 
-    target_ms = (int(match.group(1)) * 60 + int(match.group(2))) * 1000
     best, best_diff = frame_files[0], float("inf")
     for fpath in frame_files:
         try:
