@@ -146,22 +146,41 @@ def _extract_summary_text(md_text: str) -> str:
 
 def _parse_timecode_ms(timecode_str: str):
     """Парсит таймкод в миллисекунды. Форматы: MM:SS, HH:MM:SS, 0:40:34–..."""
-    # берём только первый таймкод если диапазон ('0:00–28:00' или '00:40:34–00:41:00')
     tc = timecode_str.split("–")[0].split("-")[0].strip()
     parts = re.findall(r"\d+", tc)
     if len(parts) == 3:
-        # HH:MM:SS
         h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
         return (h * 3600 + m * 60 + s) * 1000
     elif len(parts) == 2:
-        # MM:SS
         m, s = int(parts[0]), int(parts[1])
         return (m * 60 + s) * 1000
     return None
 
 
-def _find_closest_frame(timecode_str: str, session_dir: Path):
-    """По таймкоду находит ближайший кадр в frames_kept. Форматы: MM:SS, HH:MM:SS."""
+def _get_transcript_offset_ms(transcript_path: Path) -> int:
+    """Читает первый таймкод транскрипта — это смещение клипа в исходной записи."""
+    if not transcript_path or not transcript_path.exists():
+        return 0
+    pattern = re.compile(r"^(\d{1,2}:\d{2}:\d{2})")
+    try:
+        with open(transcript_path, encoding="utf-8") as f:
+            for line in f:
+                m = pattern.match(line.strip())
+                if m:
+                    ms = _parse_timecode_ms(m.group(1))
+                    return ms if ms else 0
+    except Exception:
+        pass
+    return 0
+
+
+def _find_closest_frame(timecode_str: str, session_dir: Path, offset_ms: int = 0):
+    """По таймкоду находит ближайший кадр в frames_kept.
+
+    offset_ms — смещение начала клипа в исходной записи (из первого таймкода транскрипта).
+    Если таймкод абсолютный (из транскрипта), вычитаем offset_ms чтобы получить
+    позицию относительно начала клипа. Если разрыв > 5 минут — скриншот не вставляем.
+    """
     frames_dir = session_dir / "frames_kept"
     if not frames_dir.exists():
         return None
@@ -171,7 +190,9 @@ def _find_closest_frame(timecode_str: str, session_dir: Path):
 
     target_ms = _parse_timecode_ms(timecode_str)
     if target_ms is None:
-        return frame_files[0]
+        return None
+
+    target_ms = max(0, target_ms - offset_ms)
 
     best, best_diff = frame_files[0], float("inf")
     for fpath in frame_files:
@@ -182,11 +203,16 @@ def _find_closest_frame(timecode_str: str, session_dir: Path):
         diff = abs(ts_ms - target_ms)
         if diff < best_diff:
             best_diff, best = diff, fpath
+
+    # Если ближайший кадр дальше 5 минут — скриншот не соответствует, пропускаем
+    if best_diff > 5 * 60 * 1000:
+        return None
     return best
 
 
 
-def _add_screenshots_to_sheet(wb, sheet_name: str, timecode_col_name: str, session_dir: Path) -> None:
+def _add_screenshots_to_sheet(wb, sheet_name: str, timecode_col_name: str,
+                              session_dir: Path, offset_ms: int = 0) -> None:
     """Добавляет колонку Скриншот в произвольный лист, подбирая кадр по таймкоду."""
     if sheet_name not in wb.sheetnames:
         return
@@ -210,7 +236,7 @@ def _add_screenshots_to_sheet(wb, sheet_name: str, timecode_col_name: str, sessi
         if timecode_col_idx:
             cell_val = ws.cell(row=row_idx, column=timecode_col_idx).value
             timecode_str = str(cell_val) if cell_val else ""
-        frame_path = _find_closest_frame(timecode_str, session_dir)
+        frame_path = _find_closest_frame(timecode_str, session_dir, offset_ms=offset_ms)
         if frame_path is None:
             continue
         try:
@@ -223,7 +249,8 @@ def _add_screenshots_to_sheet(wb, sheet_name: str, timecode_col_name: str, sessi
             ws.cell(row=row_idx, column=screenshot_col, value=f"[ошибка: {e}]")
 
 
-def _write_excel(report_md: str, chunks: list[dict], out_path: Path, session_dir: Path = None) -> None:
+def _write_excel(report_md: str, chunks: list[dict], out_path: Path,
+                 session_dir: Path = None, offset_ms: int = 0) -> None:
     slepok_df = _parse_md_table(report_md, "Слепок действий")
     cjm_df = _parse_md_table(report_md, "CJM")
     decision_df = _parse_md_table(report_md, "Decision Map")
@@ -266,9 +293,9 @@ def _write_excel(report_md: str, chunks: list[dict], out_path: Path, session_dir
 
         if session_dir is not None:
             if not slepok_df.empty:
-                _add_screenshots_to_sheet(writer.book, "Слепок действий", "таймкод", session_dir)
+                _add_screenshots_to_sheet(writer.book, "Слепок действий", "таймкод", session_dir, offset_ms)
             if not cjm_df.empty:
-                _add_screenshots_to_sheet(writer.book, "CJM", "таймкод", session_dir)
+                _add_screenshots_to_sheet(writer.book, "CJM", "таймкод", session_dir, offset_ms)
 
     print(f"[build_report] Excel сохранён → {out_path}")
 
@@ -277,7 +304,8 @@ def _write_excel(report_md: str, chunks: list[dict], out_path: Path, session_dir
 # Точка входа
 # ---------------------------------------------------------------------------
 
-def run(config: dict, project_root: Path, session_name: str = "final", session_dir: Path = None) -> None:
+def run(config: dict, project_root: Path, session_name: str = "final",
+        session_dir: Path = None, transcript_path: Path = None) -> None:
     load_dotenv(project_root / ".env")
 
     env = {
@@ -327,8 +355,12 @@ def run(config: dict, project_root: Path, session_name: str = "final", session_d
     md_path.write_text(report_md, encoding="utf-8")
     print(f"[build_report] Markdown → {md_path}")
 
+    offset_ms = _get_transcript_offset_ms(transcript_path)
+    if offset_ms:
+        print(f"[build_report] Смещение транскрипта: {offset_ms//60000}:{(offset_ms%60000)//1000:02d} мин")
+
     xlsx_path = session_dir / f"{session_name}_analysis.xlsx"
-    _write_excel(report_md, all_chunks, xlsx_path, session_dir=session_dir)
+    _write_excel(report_md, all_chunks, xlsx_path, session_dir=session_dir, offset_ms=offset_ms)
 
 
 if __name__ == "__main__":

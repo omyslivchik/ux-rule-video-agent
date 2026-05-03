@@ -103,7 +103,13 @@ def step_report(args: argparse.Namespace, config: dict, project_root: Path) -> N
     t0 = time.time()
     from build_report import run as report_run
     s_name, s_dir = _session_dir(args, project_root)
-    report_run(config, project_root, session_name=s_name, session_dir=s_dir)
+    transcript_path = (
+        (project_root / args.transcript).resolve()
+        if args.transcript
+        else project_root / "input" / "transcript.txt"
+    )
+    report_run(config, project_root, session_name=s_name, session_dir=s_dir,
+               transcript_path=transcript_path if transcript_path.exists() else None)
     print(f"[pipeline] Шаг 4 завершён за {time.time() - t0:.1f}с")
 
 
