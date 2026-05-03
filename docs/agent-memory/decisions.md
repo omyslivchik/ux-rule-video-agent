@@ -19,11 +19,34 @@ The product question is:
 
 The final report must contain:
 1. Краткое резюме
-2. CJM создания правила
-3. Decision map
-4. Наблюдаемые боли
-5. Главный вывод
+2. Слепок действий бухгалтера (хронологическая таблица)
+3. CJM создания правила
+4. Decision map
+5. Наблюдаемые боли
+6. Главный вывод
 
 Do not include:
 - separate automation opportunities section;
 - separate quotes or video evidence section.
+
+## 2026-05-03 — Слепок действий + скриншоты + цитаты в Excel
+
+### Decision
+
+The Excel report has two illustrated sheets:
+
+**"Слепок действий"** — chronological table of all screen navigations:
+- columns: Таймкод | Экран / интерфейс | Что делает бухгалтер | Вопрос или сложность | Реакция: куда идет дальше | Цитата | Скриншот
+- one row per screen or meaningful action block
+- shows returns and back-navigation as separate rows
+
+**"CJM"** — strategic level (stages):
+- columns: Этап | Таймкод | Что делает бухгалтер | Что пытается понять | Боль / риск | Цитата бухгалтера | Скриншот
+- "Что делает бухгалтер" = numbered step list, minimum 2–4 specific steps
+
+Screenshots are embedded using `openpyxl` Image, matched to nearest frame in `frames_kept/` by timecode.
+
+### Why
+
+The researcher needs to understand the full navigation flow, not just strategic stages.
+Screen-by-screen view with quotes and screenshots makes it possible to see where difficulties arise and how the accountant reacts.

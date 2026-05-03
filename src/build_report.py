@@ -20,6 +20,8 @@ from pathlib import Path
 import pandas as pd
 import requests
 from dotenv import load_dotenv
+from openpyxl.drawing.image import Image as XLImage
+from openpyxl.utils import get_column_letter
 from tqdm import tqdm
 
 SKIP_STAGES = {"не относится к созданию правила"}
@@ -142,7 +144,72 @@ def _extract_summary_text(md_text: str) -> str:
 # Запись Excel
 # ---------------------------------------------------------------------------
 
-def _write_excel(report_md: str, chunks: list[dict], out_path: Path) -> None:
+def _find_closest_frame(timecode_str: str, session_dir: Path):
+    """По таймкоду CJM ('28:50' или '0:00–28:00') находит ближайший кадр в frames_kept."""
+    frames_dir = session_dir / "frames_kept"
+    if not frames_dir.exists():
+        return None
+    frame_files = sorted(frames_dir.glob("frame_*.jpg"))
+    if not frame_files:
+        return None
+
+    match = re.match(r"(\d+):(\d+)", timecode_str)
+    if not match:
+        return frame_files[0]
+
+    target_ms = (int(match.group(1)) * 60 + int(match.group(2))) * 1000
+    best, best_diff = frame_files[0], float("inf")
+    for fpath in frame_files:
+        try:
+            ts_ms = int(fpath.stem.replace("frame_", ""))
+        except ValueError:
+            continue
+        diff = abs(ts_ms - target_ms)
+        if diff < best_diff:
+            best_diff, best = diff, fpath
+    return best
+
+
+
+def _add_screenshots_to_sheet(wb, sheet_name: str, timecode_col_name: str, session_dir: Path) -> None:
+    """Добавляет колонку Скриншот в произвольный лист, подбирая кадр по таймкоду."""
+    if sheet_name not in wb.sheetnames:
+        return
+    ws = wb[sheet_name]
+
+    img_w, img_h = 320, 180
+    row_height_pt = img_h * 0.75
+
+    timecode_col_idx = None
+    for cell in ws[1]:
+        if cell.value and timecode_col_name.lower() in str(cell.value).lower():
+            timecode_col_idx = cell.column
+            break
+
+    screenshot_col = ws.max_column + 1
+    ws.cell(row=1, column=screenshot_col, value="Скриншот")
+    ws.column_dimensions[get_column_letter(screenshot_col)].width = 46
+
+    for row_idx in range(2, ws.max_row + 1):
+        timecode_str = ""
+        if timecode_col_idx:
+            cell_val = ws.cell(row=row_idx, column=timecode_col_idx).value
+            timecode_str = str(cell_val) if cell_val else ""
+        frame_path = _find_closest_frame(timecode_str, session_dir)
+        if frame_path is None:
+            continue
+        try:
+            img = XLImage(str(frame_path))
+            img.width = img_w
+            img.height = img_h
+            ws.add_image(img, f"{get_column_letter(screenshot_col)}{row_idx}")
+            ws.row_dimensions[row_idx].height = row_height_pt
+        except Exception as e:
+            ws.cell(row=row_idx, column=screenshot_col, value=f"[ошибка: {e}]")
+
+
+def _write_excel(report_md: str, chunks: list[dict], out_path: Path, session_dir: Path = None) -> None:
+    slepok_df = _parse_md_table(report_md, "Слепок действий")
     cjm_df = _parse_md_table(report_md, "CJM")
     decision_df = _parse_md_table(report_md, "Decision Map")
     if decision_df.empty:
@@ -165,6 +232,10 @@ def _write_excel(report_md: str, chunks: list[dict], out_path: Path) -> None:
 
     with pd.ExcelWriter(str(out_path), engine="openpyxl") as writer:
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
+        if not slepok_df.empty:
+            slepok_df.to_excel(writer, sheet_name="Слепок действий", index=False)
+        else:
+            pd.DataFrame(columns=["Нет данных"]).to_excel(writer, sheet_name="Слепок действий", index=False)
         if not cjm_df.empty:
             cjm_df.to_excel(writer, sheet_name="CJM", index=False)
         else:
@@ -177,6 +248,12 @@ def _write_excel(report_md: str, chunks: list[dict], out_path: Path) -> None:
             pains_df.to_excel(writer, sheet_name="Pains", index=False)
         else:
             pd.DataFrame(columns=["Нет данных"]).to_excel(writer, sheet_name="Pains", index=False)
+
+        if session_dir is not None:
+            if not slepok_df.empty:
+                _add_screenshots_to_sheet(writer.book, "Слепок действий", "таймкод", session_dir)
+            if not cjm_df.empty:
+                _add_screenshots_to_sheet(writer.book, "CJM", "таймкод", session_dir)
 
     print(f"[build_report] Excel сохранён → {out_path}")
 
@@ -236,7 +313,7 @@ def run(config: dict, project_root: Path, session_name: str = "final", session_d
     print(f"[build_report] Markdown → {md_path}")
 
     xlsx_path = session_dir / f"{session_name}_analysis.xlsx"
-    _write_excel(report_md, all_chunks, xlsx_path)
+    _write_excel(report_md, all_chunks, xlsx_path, session_dir=session_dir)
 
 
 if __name__ == "__main__":
