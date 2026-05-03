@@ -1,0 +1,18 @@
+{
+  "sample_fps": 2.0,
+  "jpeg_quality": 85,
+  "resize_width": 1024,
+  "min_keep_gap_sec": 2.0,
+  "force_keep_every_sec": 15.0,
+  "pixel_diff_threshold": 3.0,
+  "phash_distance_threshold": 8,
+  "scene_break_gap_sec": 20.0,
+  "scene_similarity_phash_threshold": 7,
+  "max_frames_per_scene": 2,
+  "max_previous_summary_chars": 300,
+  "request_timeout_sec": 180,
+  "max_retries": 4,
+  "retry_backoff_sec": 2.5,
+  "openrouter_temperature": 0.1,
+  "openrouter_max_tokens": 6000
+}

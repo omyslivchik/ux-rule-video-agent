@@ -1,0 +1,77 @@
+---
+description: Rules for UX Rule Video Agent project
+alwaysApply: true
+---
+
+# UX Rule Video Agent rules
+
+## Core goal
+
+This project analyzes UX videos where an accountant creates rules for client operations.
+
+The goal is not a general workday summary.
+The goal is to reconstruct the rule creation scenario:
+- how the accountant finds a candidate operation;
+- how they check repeatability;
+- how they decide what condition to use;
+- how they assess risk;
+- how they check the result.
+
+## Required output format
+
+Final report must contain only:
+
+1. Краткое резюме
+2. CJM создания правила
+3. Decision map
+4. Наблюдаемые боли
+5. Главный вывод
+
+Do not add separate sections:
+- Возможности автоматизации
+- Цитаты и видео-доказательства
+
+## Project memory
+
+Before starting any task, read:
+
+- `AGENTS.md`
+- `docs/agent-memory/decisions.md`
+- `docs/agent-memory/bugs_and_fixes.md`
+- `docs/agent-memory/lessons_learned.md`
+- `docs/agent-memory/runbook.md`
+- `docs/agent-memory/quality_checklist.md`
+- `docs/agent-memory/prompt_versions.md`
+
+Use these files as project memory.
+
+## Memory update policy
+
+After a task, propose updates to memory if:
+- a new bug was found;
+- a fix worked;
+- a prompt was improved;
+- the report format changed;
+- setup or run commands changed;
+- the user explicitly says to remember something for this project.
+
+Do not update memory silently.
+Show the proposed text first and wait for confirmation.
+
+## Terminal command policy
+
+- Give commands as separate blocks unless intentionally joined with `&&`.
+- Never concatenate unrelated commands accidentally.
+- Do not print API keys.
+- Do not run destructive commands without confirmation.
+- Prefer safe checks before full runs.
+
+## Coding policy
+
+- Keep MVP simple.
+- No UI in v1.
+- No database in v1.
+- No OCR in v1 unless explicitly requested.
+- No batch processing in v1 unless explicitly requested.
+- Use clear Python code and readable logs.
+- All outputs go to `output/`.

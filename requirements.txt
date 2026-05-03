@@ -1,0 +1,10 @@
+openai
+python-dotenv
+requests
+pandas
+openpyxl
+pydantic
+opencv-python
+Pillow
+imagehash
+tqdm
