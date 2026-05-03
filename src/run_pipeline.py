@@ -56,13 +56,21 @@ def _check_file(path: Path, label: str) -> None:
 # Шаги
 # ---------------------------------------------------------------------------
 
+def _session_dir(args: argparse.Namespace, project_root: Path) -> tuple[str, Path]:
+    session_name = Path(args.video).stem if args.video else "session"
+    session_dir = project_root / "output" / "sessions" / session_name
+    session_dir.mkdir(parents=True, exist_ok=True)
+    return session_name, session_dir
+
+
 def step_extract(args: argparse.Namespace, config: dict, project_root: Path) -> None:
     print("\n[pipeline] ── Шаг 1: extract_frames ──")
     t0 = time.time()
     from extract_frames import extract_frames
     video_path = (project_root / args.video).resolve() if args.video else project_root / "input" / "video.mp4"
     _check_file(video_path, "video")
-    extract_frames(video_path, config, project_root)
+    _, s_dir = _session_dir(args, project_root)
+    extract_frames(video_path, config, project_root, session_dir=s_dir)
     print(f"[pipeline] Шаг 1 завершён за {time.time() - t0:.1f}с")
 
 
@@ -70,7 +78,8 @@ def step_scenes(args: argparse.Namespace, config: dict, project_root: Path) -> N
     print("\n[pipeline] ── Шаг 2: build_scenes ──")
     t0 = time.time()
     from build_scenes import run as build_scenes_run
-    build_scenes_run(config, project_root)
+    _, s_dir = _session_dir(args, project_root)
+    build_scenes_run(config, project_root, session_dir=s_dir)
     print(f"[pipeline] Шаг 2 завершён за {time.time() - t0:.1f}с")
 
 
@@ -84,7 +93,8 @@ def step_analyze(args: argparse.Namespace, config: dict, project_root: Path) -> 
         else project_root / "input" / "transcript.txt"
     )
     _check_file(transcript_path, "transcript")
-    analyze_run(transcript_path, config, project_root)
+    _, s_dir = _session_dir(args, project_root)
+    analyze_run(transcript_path, config, project_root, session_dir=s_dir)
     print(f"[pipeline] Шаг 3 завершён за {time.time() - t0:.1f}с")
 
 
@@ -92,7 +102,8 @@ def step_report(args: argparse.Namespace, config: dict, project_root: Path) -> N
     print("\n[pipeline] ── Шаг 4: build_report ──")
     t0 = time.time()
     from build_report import run as report_run
-    report_run(config, project_root)
+    s_name, s_dir = _session_dir(args, project_root)
+    report_run(config, project_root, session_name=s_name, session_dir=s_dir)
     print(f"[pipeline] Шаг 4 завершён за {time.time() - t0:.1f}с")
 
 
@@ -146,8 +157,10 @@ def main() -> None:
         STEPS[step_name](args, config, project_root)
 
     elapsed = time.time() - t_total
+    session_name = Path(args.video).stem if args.video else "session"
+    session_dir = project_root / "output" / "sessions" / session_name
     print(f"\n[pipeline] Готово. Общее время: {elapsed:.1f}с")
-    print(f"[pipeline] Отчёты: {project_root / 'output' / 'reports'}")
+    print(f"[pipeline] Сессия: {session_dir}")
 
 
 if __name__ == "__main__":

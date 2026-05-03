@@ -14,8 +14,10 @@ import cv2
 from tqdm import tqdm
 
 
-def extract_frames(video_path: Path, config: dict, project_root: Path) -> None:
-    out_dir = project_root / "output" / "frames_raw"
+def extract_frames(video_path: Path, config: dict, project_root: Path, session_dir: Path = None) -> None:
+    if session_dir is None:
+        session_dir = project_root / "output"
+    out_dir = session_dir / "frames_raw"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     sample_fps: float = config["sample_fps"]
@@ -42,7 +44,7 @@ def extract_frames(video_path: Path, config: dict, project_root: Path) -> None:
     )
 
     encode_params = [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality]
-    index_path = project_root / "output" / "frames_index.jsonl"
+    index_path = session_dir / "frames_index.jsonl"
     index_path.parent.mkdir(parents=True, exist_ok=True)
 
     saved = 0

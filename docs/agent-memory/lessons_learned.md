@@ -108,3 +108,21 @@ When giving terminal instructions, the agent should:
 Reason:
 
 This reduces confusion and prevents accidental errors during setup.
+
+---
+
+## 2026-05-03 — Interview videos produce valid output even without UI actions
+
+The pipeline works on interview-format videos where the accountant describes their process verbally, not screen recordings of actual rule creation.
+
+In this case:
+- `analyze_scenes` will label the scene as "не относится к созданию правила" because no UI actions are visible
+- But `decision`, `risk_or_pain`, `short_summary` fields will be filled with rich content from the transcript
+- `build_report` must not skip these scenes
+
+The final report should note that data comes from an interview, not observed behavior.
+The model does this automatically when given the right context.
+
+Reason:
+
+Interview sessions capture accountant reasoning, decision logic, and fears — which are exactly what the project needs. They are valid input even without screen interaction.

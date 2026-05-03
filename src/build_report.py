@@ -25,6 +25,20 @@ from tqdm import tqdm
 SKIP_STAGES = {"не относится к созданию правила"}
 
 
+def _is_relevant(chunk: dict) -> bool:
+    """Сцена релевантна если: либо stage не в SKIP_STAGES,
+    либо в ней есть реальный контент (decision, risk_or_pain, short_summary)."""
+    stage = chunk.get("rule_creation_stage", "")
+    if stage not in SKIP_STAGES:
+        return True
+    has_content = any([
+        chunk.get("decision", "").strip(),
+        chunk.get("risk_or_pain", "").strip(),
+        chunk.get("short_summary", "").strip(),
+    ])
+    return has_content
+
+
 # ---------------------------------------------------------------------------
 # Запрос к OpenRouter (текст)
 # ---------------------------------------------------------------------------
@@ -171,7 +185,7 @@ def _write_excel(report_md: str, chunks: list[dict], out_path: Path) -> None:
 # Точка входа
 # ---------------------------------------------------------------------------
 
-def run(config: dict, project_root: Path) -> None:
+def run(config: dict, project_root: Path, session_name: str = "final", session_dir: Path = None) -> None:
     load_dotenv(project_root / ".env")
 
     env = {
@@ -186,7 +200,9 @@ def run(config: dict, project_root: Path) -> None:
         print("[build_report] OPENROUTER_API_KEY не задан в .env", file=sys.stderr)
         sys.exit(1)
 
-    analyses_path = project_root / "output" / "chunks" / "scene_analyses.jsonl"
+    if session_dir is None:
+        session_dir = project_root / "output"
+    analyses_path = session_dir / "chunks" / "scene_analyses.jsonl"
     if not analyses_path.exists():
         print(f"[build_report] Не найден {analyses_path}. Сначала запустите analyze_scenes.", file=sys.stderr)
         sys.exit(1)
@@ -197,10 +213,7 @@ def run(config: dict, project_root: Path) -> None:
         if line.strip()
     ]
 
-    relevant_chunks = [
-        c for c in all_chunks
-        if c.get("rule_creation_stage", "") not in SKIP_STAGES
-    ]
+    relevant_chunks = [c for c in all_chunks if _is_relevant(c)]
 
     skipped = len(all_chunks) - len(relevant_chunks)
     print(f"[build_report] Всего сцен: {len(all_chunks)}, используется: {len(relevant_chunks)}, пропущено: {skipped}")
@@ -216,14 +229,13 @@ def run(config: dict, project_root: Path) -> None:
     print("[build_report] Отправляю запрос в OpenRouter...")
     report_md = _call_openrouter_text(final_prompt, env, config)
 
-    reports_dir = project_root / "output" / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
+    session_dir.mkdir(parents=True, exist_ok=True)
 
-    md_path = reports_dir / "final_report.md"
+    md_path = session_dir / f"{session_name}_report.md"
     md_path.write_text(report_md, encoding="utf-8")
     print(f"[build_report] Markdown → {md_path}")
 
-    xlsx_path = reports_dir / "ux_rule_creation_analysis.xlsx"
+    xlsx_path = session_dir / f"{session_name}_analysis.xlsx"
     _write_excel(report_md, all_chunks, xlsx_path)
 
 

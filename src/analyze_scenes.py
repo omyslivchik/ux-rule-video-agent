@@ -229,7 +229,7 @@ def analyze_one_scene(
 # Точка входа
 # ---------------------------------------------------------------------------
 
-def run(transcript_path: Path, config: dict, project_root: Path) -> list[dict]:
+def run(transcript_path: Path, config: dict, project_root: Path, session_dir: Path = None) -> list[dict]:
     load_dotenv(project_root / ".env")
 
     env = {
@@ -244,7 +244,9 @@ def run(transcript_path: Path, config: dict, project_root: Path) -> list[dict]:
         print("[analyze_scenes] OPENROUTER_API_KEY не задан в .env", file=sys.stderr)
         sys.exit(1)
 
-    scenes_jsonl = project_root / "output" / "scenes.jsonl"
+    if session_dir is None:
+        session_dir = project_root / "output"
+    scenes_jsonl = session_dir / "scenes.jsonl"
     if not scenes_jsonl.exists():
         print(f"[analyze_scenes] Не найден {scenes_jsonl}. Сначала запустите build_scenes.", file=sys.stderr)
         sys.exit(1)
@@ -257,7 +259,7 @@ def run(transcript_path: Path, config: dict, project_root: Path) -> list[dict]:
     transcript = _parse_transcript(transcript_path)
     prompt_text = (project_root / "prompts" / "scene_analysis_prompt.md").read_text(encoding="utf-8")
 
-    chunks_dir = project_root / "output" / "chunks"
+    chunks_dir = session_dir / "chunks"
     chunks_dir.mkdir(parents=True, exist_ok=True)
     out_path = chunks_dir / "scene_analyses.jsonl"
 

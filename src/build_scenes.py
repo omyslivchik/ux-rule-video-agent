@@ -133,7 +133,7 @@ def filter_frames(
 
 def build_scenes(
     kept_frames: list[dict],
-    project_root: Path,
+    session_dir: Path,
     config: dict,
 ) -> list[dict]:
     scene_break_ms = int(config["scene_break_gap_sec"] * 1000)
@@ -153,9 +153,8 @@ def build_scenes(
     if current:
         raw_groups.append(current)
 
-    out_dir = project_root / "output"
-    scenes_jsonl_path = out_dir / "scenes.jsonl"
-    packets_dir = out_dir / "scene_packets"
+    scenes_jsonl_path = session_dir / "scenes.jsonl"
+    packets_dir = session_dir / "scene_packets"
     packets_dir.mkdir(parents=True, exist_ok=True)
 
     scene_list: list[dict] = []
@@ -207,7 +206,7 @@ def build_scenes(
         "total_kept_frames": len(kept_frames),
         "scenes": scene_list,
     }
-    manifest_path = out_dir / "scene_manifest.json"
+    manifest_path = session_dir / "scene_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"[build_scenes] Сформировано {len(scene_list)} сцен")
@@ -221,16 +220,18 @@ def build_scenes(
 # Точка входа
 # ---------------------------------------------------------------------------
 
-def run(config: dict, project_root: Path) -> list[dict]:
-    frames_raw_dir = project_root / "output" / "frames_raw"
-    frames_kept_dir = project_root / "output" / "frames_kept"
+def run(config: dict, project_root: Path, session_dir: Path = None) -> list[dict]:
+    if session_dir is None:
+        session_dir = project_root / "output"
+    frames_raw_dir = session_dir / "frames_raw"
+    frames_kept_dir = session_dir / "frames_kept"
 
     kept_frames = filter_frames(frames_raw_dir, frames_kept_dir, config)
     if not kept_frames:
         print("[build_scenes] Нет кадров для группировки.", file=sys.stderr)
         return []
 
-    return build_scenes(kept_frames, project_root, config)
+    return build_scenes(kept_frames, session_dir, config)
 
 
 if __name__ == "__main__":

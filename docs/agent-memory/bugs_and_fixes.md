@@ -144,3 +144,37 @@ When explaining terminal navigation, always distinguish:
 ### Status
 
 Resolved. The user entered the project folder and continued setup.
+
+---
+
+## 2026-05-03 — build_report filtered out interview scenes
+
+### Symptom
+
+Pipeline ran successfully through steps 1–3, but step 4 printed:
+
+```text
+Всего сцен: 1, используется: 0, пропущено: 1
+Нет релевантных сцен для отчёта.
+```
+
+### Root cause
+
+`build_report.py` filtered all scenes with `rule_creation_stage == "не относится к созданию правила"` via `SKIP_STAGES`.
+
+When the video is an interview (not a screen recording of actual rule creation), `analyze_scenes` correctly labels the scene as "не относится к созданию правила" because no UI actions are visible. But the scene still contains rich content: decisions, risks, pains, and accountant reasoning.
+
+### Fix
+
+Added `_is_relevant()` function in `build_report.py`:
+- If `rule_creation_stage` is not in `SKIP_STAGES` → include
+- If it is in `SKIP_STAGES` but `decision`, `risk_or_pain`, or `short_summary` are non-empty → also include
+
+### Prevention rule for Cursor Agent
+
+Do not assume `rule_creation_stage = "не относится к созданию правила"` means the scene has no value.
+Check whether `decision`, `risk_or_pain`, and `short_summary` fields have content before skipping.
+
+### Status
+
+Resolved. Report generated successfully after applying the fix.
